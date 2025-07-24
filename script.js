@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Get HTML elements
     const canvas = document.getElementById('gameWheel');
     const ctx = canvas.getContext('2d');
     const spinBtn = document.getElementById('spinButton');
@@ -15,120 +16,95 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     const numSegments = games.length;
-    const segmentAngle = (2 * Math.PI) / numSegments; // Angle for each segment in radians
+    // Calculate the angle for each segment in radians (a full circle is 2*PI radians)
+    const segmentAngle = (2 * Math.PI) / numSegments;
 
     // Colors for the wheel segments (sage green and white)
-    const colors = ["#6B8E23", "#FFFFFF"]; // Sage green, White
+    const colors = ["#6B8E23", "#FFFFFF"];
 
     let currentRotation = 0; // Tracks the current rotation of the wheel
-    let spinning = false; // Flag to prevent multiple spins
+    let spinning = false;    // Flag to prevent multiple spins
 
-    // Function to draw the wheel
+    // Function to draw the wheel segments and text
     function drawWheel() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the entire canvas before drawing
 
         for (let i = 0; i < numSegments; i++) {
             const startAngle = i * segmentAngle;
             const endAngle = (i + 1) * segmentAngle;
 
+            // Draw the segment (pie slice)
             ctx.beginPath();
-            ctx.arc(canvas.width / 2, canvas.height / 2, canvas.width / 2 - 10, startAngle, endAngle);
-            ctx.lineTo(canvas.width / 2, canvas.height / 2); // Draw line to center
+            ctx.arc(canvas.width / 2, canvas.height / 2, canvas.width / 2 - 10, startAngle, endAngle); // Outer arc
+            ctx.lineTo(canvas.width / 2, canvas.height / 2); // Line to center
             ctx.closePath();
 
-            ctx.fillStyle = colors[i % colors.length]; // Alternate colors
-            ctx.fill();
+            ctx.fillStyle = colors[i % colors.length]; // Alternate colors (sage green, white, sage green, white...)
+            ctx.fill(); // Fill the segment with its color
             ctx.strokeStyle = "#333"; // Outline color for segments
             ctx.lineWidth = 2;
-            ctx.stroke();
+            ctx.stroke(); // Draw the outline
 
             // Draw text (game name)
-            ctx.save(); // Save the current drawing state
-            ctx.translate(canvas.width / 2, canvas.height / 2); // Move origin to center
-            ctx.rotate(startAngle + segmentAngle / 2); // Rotate to the middle of the segment
+            ctx.save(); // Save the current canvas state (important for rotating text)
+            ctx.translate(canvas.width / 2, canvas.height / 2); // Move origin to center of wheel
+            ctx.rotate(startAngle + segmentAngle / 2); // Rotate to the middle of the current segment
 
             ctx.textAlign = "right"; // Align text to the right
             ctx.fillStyle = "#333"; // Text color (dark gray for readability)
-            ctx.font = "bold 20px Arial"; // Font size and style for words
+            ctx.font = "bold 20px Arial"; // Font size and style for words (easily visible)
 
-            // Adjust text position
-            const textRadius = (canvas.width / 2) * 0.7; // Position text closer to the edge
-            ctx.fillText(games[i], textRadius, 10); // Draw text
+            // Adjust text position slightly in from the edge
+            const textRadius = (canvas.width / 2) * 0.7;
+            ctx.fillText(games[i], textRadius, 10); // Draw the game name
 
-            ctx.restore(); // Restore the drawing state
+            ctx.restore(); // Restore the canvas state (undo the rotation for the next segment)
         }
     }
 
-    // Function to spin the wheel
+    // Function to handle the wheel spin when the button is clicked
     spinBtn.addEventListener('click', () => {
-        if (spinning) return; // Don't spin if already spinning
+        if (spinning) return; // If already spinning, do nothing
         spinning = true;
-        resultDisplay.textContent = ''; // Clear previous result
+        resultDisplay.textContent = ''; // Clear any previous winning message
 
-        // Calculate a random degree to stop on
-        const minDegrees = 360 * 5; // Minimum 5 full rotations
-        const maxDegrees = 360 * 8; // Maximum 8 full rotations
+        // Calculate a random number of degrees for the wheel to spin
+        // It ensures at least 5 full rotations (360 * 5) and up to 8 full rotations (360 * 8)
+        const minDegrees = 360 * 5;
+        const maxDegrees = 360 * 8;
         const randomDegrees = Math.floor(Math.random() * (maxDegrees - minDegrees + 1)) + minDegrees;
 
-        // Determine which segment it will land on
+        // Add the random spin to the wheel's current rotation
         const finalRotation = currentRotation + randomDegrees;
+        // Apply the rotation to the canvas element using CSS transform
+        // The CSS 'transition' property makes this rotation smooth
         canvas.style.transform = `rotate(${finalRotation}deg)`;
 
-        // Calculate which segment index it will land on
-        const totalRotationNormalized = finalRotation % 360;
-        const segmentDegree = 360 / numSegments;
-        // Invert for wheel spin logic: 0 degrees is top, spinning clockwise
-        const landingIndex = Math.floor((360 - (totalRotationNormalized % 360) + (segmentDegree / 2)) % 360 / segmentDegree);
-        // This calculation is tricky because 0 degrees is typically right, but visually we want the pointer at the top.
-        // We'll adjust the 'landingIndex' to correctly map to our array.
-        // A simpler way for a newbie is to let it land and then calculate which segment is "under" the pointer.
-        // For now, let's just make sure the rotation looks good.
-
-        // The transition in CSS handles the smooth animation.
-        // We need to wait for the animation to complete to get the result.
+        // Listen for when the CSS transition (the spinning animation) finishes
         canvas.addEventListener('transitionend', () => {
-            spinning = false;
-            currentRotation = finalRotation % 360; // Keep track of the actual current rotation for next spin
+            spinning = false; // Allow spinning again
+            currentRotation = finalRotation % 360; // Update current rotation for the next spin
 
-            // Determine the winning segment more reliably after the spin
-            // The pointer is at 0 degrees (top).
-            // Segments are drawn starting from 0 (right) clockwise.
-            // We need to find which segment's middle is closest to the pointer.
+            // --- Logic to determine which segment landed under the pointer ---
+            // The pointer is visually at the top (0 degrees or 360 degrees on a circle).
+            // Canvas drawing starts from the right (0 degrees) and goes clockwise.
+            // We adjust the final rotation to align with the pointer's position (top = -90 degrees or 270 degrees from 0-right).
+            const adjustedRotationForPointer = (360 - (finalRotation % 360) + 270) % 360;
 
-            // Get the current rotation in degrees, normalized to 0-360, relative to the top (pointer)
-            let normalizedRotationAtPointer = (360 - (currentRotation % 360) + 90) % 360; // Add 90 to align with top for segment calculation
+            // Calculate which segment index it landed on based on the adjusted rotation
+            // Divide the adjusted rotation by the degree value of each segment
+            const segmentDegree = segmentAngle * 180 / Math.PI; // Convert segment angle from radians to degrees
+            const landedSegmentIndex = Math.floor(adjustedRotationForPointer / segmentDegree);
 
-            let winningIndex = -1;
-            for (let i = 0; i < numSegments; i++) {
-                const segmentStartDegree = (i * segmentAngle * 180 / Math.PI);
-                const segmentEndDegree = ((i + 1) * segmentAngle * 180 / Math.PI);
-
-                // Check if the pointer (at 0 degrees) is within the segment's arc
-                // This logic can be tricky with wrap-around, simplified for direct calculation:
-                if (normalizedRotationAtPointer >= segmentStartDegree && normalizedRotationAtPointer < segmentEndDegree) {
-                     winningIndex = i;
-                     break;
-                }
-            }
-            
-            // A more robust way to find the winning segment (relative to the pointer at the top)
-            // The canvas rotation starts from the right (0 degrees).
-            // The pointer is at the top (visually -90 degrees or 270 degrees from 0).
-            // To figure out which segment landed at the top, we need to adjust the rotation.
-            // The total angle for all segments is 360 degrees.
-            // Each segment covers `segmentAngle` (in radians).
-            // `segmentDegree` is `segmentAngle` in degrees.
-            const adjustedRotationForPointer = (360 - (finalRotation % 360) + 270) % 360; // +270 or -90 to align 0 with the pointer
-            const landedSegmentIndex = Math.floor(adjustedRotationForPointer / (segmentAngle * 180 / Math.PI));
-
-            // Ensure the index is within bounds and adjust if necessary for array mapping
-            const actualWinningIndex = (numSegments - 1 - landedSegmentIndex + numSegments) % numSegments; // Reverse and adjust for array order
+            // The 'games' array order needs to be reverse-mapped because of how the segments are drawn
+            // and how the pointer aligns. This formula corrects it.
+            const actualWinningIndex = (numSegments - 1 - landedSegmentIndex + numSegments) % numSegments;
 
             resultDisplay.textContent = `You should play: ${games[actualWinningIndex]}!`;
 
-        }, { once: true }); // Ensure the event listener runs only once
+        }, { once: true }); // The { once: true } ensures this event listener only runs once per spin
     });
 
-    // Initial draw of the wheel
+    // Initial drawing of the wheel when the page loads
     drawWheel();
 });
